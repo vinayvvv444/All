@@ -1,8 +1,10 @@
-﻿using All.Models;
-using All.Services;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
+﻿using All.Contracts;
+using All.Contracts.jwt;
+using All.Models.jwt;
+using All.Models.User;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace All.Controllers
 {
@@ -10,31 +12,95 @@ namespace All.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
-        private readonly ITokenService _tokenService;
+        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IJwtTokenService _jwtTokenService;
+        private readonly IRefreshTokenRepository _refreshTokenRepository;
+        private readonly JwtSettings _jwtSettings;
 
-        public AuthController(ITokenService tokenService)
+        public AuthController(UserManager<ApplicationUser> userManager
+            , IJwtTokenService jwtTokenService
+            , IRefreshTokenRepository refreshTokenRepository
+            , IOptions<JwtSettings> jwtSettings)
         {
-            _tokenService = tokenService;
+            _userManager = userManager;
+            _jwtTokenService = jwtTokenService;
+            _refreshTokenRepository = refreshTokenRepository;
+            _jwtSettings = jwtSettings.Value;
         }
 
         [HttpPost("login")]
-        public IActionResult Login([FromBody] UserModel user)
+        public async Task<IActionResult> Login([FromBody] UserModel userModel)
         {
-            // Validate the user credentials here (this is just a sample)
-            if (user.Username == "test" && user.Password == "password")
+            var user = await _userManager.FindByNameAsync(userModel.Username);
+            if (user == null || !await _userManager.CheckPasswordAsync(user, userModel.Password))
             {
-                var token = _tokenService.GenerateToken(user);
-                return Ok(new { token });
+                return Unauthorized();
             }
+            
+            var accessToken = _jwtTokenService.GenerateAccessToken(user);
+            var refreshToken = _jwtTokenService.GenerateRefreshToken();
 
-            return Unauthorized();
+            var refreshTokenEntity = new RefreshToken
+            {
+                Token = refreshToken,
+                UserId = user.Id,
+                ExpiryDate = DateTime.Now.AddDays(_jwtSettings.RefreshTokenExpirationDays)
+            };
+
+            await _refreshTokenRepository.AddRefreshTokenAsync(refreshTokenEntity);
+
+            return Ok(new
+            {
+                AccessToken = accessToken,
+                RefreshToken = refreshToken
+            });
         }
 
-        [HttpGet("protected")]
-        [Authorize]
-        public IActionResult Protected()
+        [HttpPost("refresh")]
+        public async Task<IActionResult> Refresh([FromBody] TokenRequestModel tokenRequest)
         {
-            return Ok("This is a protected endpoint.");
+            var principal = _jwtTokenService.GetPrincipalFromExpiredToken(tokenRequest.AccessToken);
+            var username = principal.Identity.Name;
+            var user = await _userManager.FindByNameAsync(username);
+
+            var savedRefreshToken = await _refreshTokenRepository.GetRefreshTokenAsync(tokenRequest.RefreshToken);
+            if (savedRefreshToken == null || savedRefreshToken.UserId != user.Id || savedRefreshToken.ExpiryDate <= DateTime.Now)
+            {
+                return Unauthorized();
+            }
+
+            var newAccessToken = _jwtTokenService.GenerateAccessToken(user);
+            var newRefreshToken = _jwtTokenService.GenerateRefreshToken();
+
+            var newRefreshTokenEntity = new RefreshToken
+            {
+                Token = newRefreshToken,
+                UserId = user.Id,
+                ExpiryDate = DateTime.Now.AddDays(_jwtSettings.RefreshTokenExpirationDays)
+            };
+
+            await _refreshTokenRepository.RemoveRefreshTokenAsync(savedRefreshToken);
+            await _refreshTokenRepository.AddRefreshTokenAsync(newRefreshTokenEntity);
+
+            return Ok(new
+            {
+                AccessToken = newAccessToken,
+                RefreshToken = newRefreshToken
+            });
+        }
+
+        [HttpPost("revoke")]
+        public async Task<IActionResult> Revoke([FromBody] RevokeTokenRequestModel revokeTokenRequest)
+        {
+            var savedRefreshToken = await _refreshTokenRepository.GetRefreshTokenAsync(revokeTokenRequest.RefreshToken);
+            if (savedRefreshToken == null)
+            {
+                return NotFound();
+            }
+
+            await _refreshTokenRepository.RemoveRefreshTokenAsync(savedRefreshToken);
+
+            return NoContent();
         }
     }
 }

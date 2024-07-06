@@ -1,6 +1,15 @@
+using All.Contracts.jwt;
+using All.Contracts;
+using All.Data;
 using All.Models;
+using All.Models.jwt;
+using All.Models.User;
+using All.Repository;
 using All.Services;
+using All.Services.jwt;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
@@ -15,6 +24,13 @@ var jwtSettings = new JwtSettings();
 builder.Configuration.GetSection("JwtSettings").Bind(jwtSettings);
 builder.Services.AddSingleton(jwtSettings);
 builder.Services.AddSingleton<ITokenService, TokenService>();
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
 
 // Configure JWT authentication
 builder.Services.AddAuthentication(options =>
@@ -35,6 +51,10 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey))
     };
 });
+// Register your custom services here
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -72,6 +92,7 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
@@ -80,6 +101,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -1,4 +1,5 @@
-﻿using All.Models;
+﻿using All.Models.jwt;
+using All.Models.User;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -35,7 +36,7 @@ namespace All.Services
                 issuer: _jwtSettings.Issuer,
                 audience: _jwtSettings.Audience,
                 claims: claims,
-                expires: DateTime.Now.AddMinutes(_jwtSettings.ExpiryMinutes),
+                //expires: DateTime.Now.AddMinutes(_jwtSettings.ExpiryMinutes),
                 signingCredentials: creds);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
