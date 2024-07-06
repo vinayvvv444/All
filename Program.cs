@@ -22,6 +22,7 @@ builder.Services.AddControllers();
 // Load JWT settings from configuration
 var jwtSettings = new JwtSettings();
 builder.Configuration.GetSection("JwtSettings").Bind(jwtSettings);
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.AddSingleton(jwtSettings);
 builder.Services.AddSingleton<ITokenService, TokenService>();
 

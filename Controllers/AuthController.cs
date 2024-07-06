@@ -28,6 +28,25 @@ namespace All.Controllers
             _jwtSettings = jwtSettings.Value;
         }
 
+        [HttpPost("register")]
+        public async Task<IActionResult> Register([FromBody] RegisterModel model)
+        {
+            if (ModelState.IsValid)
+            {
+                var user = new ApplicationUser { UserName = model.Email, Email = model.Email };
+                var result = await _userManager.CreateAsync(user, model.Password);
+
+                if (result.Succeeded)
+                {
+                    return Ok(new { message = "User registered successfully" });
+                }
+
+                return BadRequest(result.Errors);
+            }
+
+            return BadRequest(ModelState);
+        }
+
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] UserModel userModel)
         {
@@ -99,6 +118,24 @@ namespace All.Controllers
             }
 
             await _refreshTokenRepository.RemoveRefreshTokenAsync(savedRefreshToken);
+
+            return NoContent();
+        }
+
+        [HttpDelete("by-username/{username}")]
+        public async Task<IActionResult> DeleteUserByUsername(string username)
+        {
+            var user = await _userManager.FindByNameAsync(username);
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            var result = await _userManager.DeleteAsync(user);
+            if (!result.Succeeded)
+            {
+                return BadRequest(result.Errors);
+            }
 
             return NoContent();
         }
