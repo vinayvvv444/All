@@ -26,6 +26,7 @@ builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSet
 builder.Services.AddSingleton(jwtSettings);
 builder.Services.AddSingleton<ITokenService, TokenService>();
 
+// configure db connection
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
