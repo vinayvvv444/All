@@ -12,12 +12,11 @@ namespace All.Services.jwt
 {
     public class JwtTokenService : IJwtTokenService
     {
-        private readonly IConfiguration _configuration;
-        //private readonly JwtSettings _jwtSettings;
+        private readonly JwtSettings _jwtSettings;
 
-        public JwtTokenService(IConfiguration configuration)
+        public JwtTokenService(IOptions<JwtSettings> jwtSettings)
         {
-            _configuration = configuration;
+            _jwtSettings = jwtSettings.Value;
         }
         //public JwtTokenService(JwtSettings jwtSettings)
         //{
@@ -41,12 +40,12 @@ namespace All.Services.jwt
             new Claim(JwtRegisteredClaimNames.Exp, new DateTimeOffset(DateTime.UtcNow.AddMinutes(30)).ToUnixTimeSeconds().ToString()) // Add the exp claim
         };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
+                issuer: _jwtSettings.Issuer,
+                audience: _jwtSettings.Audience,
                 claims: claims,
                 //expires: indianTime.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes),
                 expires: DateTime.UtcNow.AddHours(1),
@@ -58,7 +57,7 @@ namespace All.Services.jwt
         public string GenerateAccessTokenNew(ApplicationUser user)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"]);
+            var key = Encoding.ASCII.GetBytes(_jwtSettings.SecretKey);
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(new[]
@@ -69,9 +68,9 @@ namespace All.Services.jwt
                 new Claim(ClaimTypes.Name, user.UserName)
             }),
                 // Expires = DateTime.Now.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes),
-                Expires = DateTime.UtcNow.AddHours(1),
-                Issuer = _configuration["Jwt:Issuer"],
-                Audience = _configuration["Jwt:Audience"],
+                Expires = DateTime.Now.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes),
+                Issuer = _jwtSettings.Issuer,
+                Audience = _jwtSettings.Audience,
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };
             var token = tokenHandler.CreateToken(tokenDescriptor);
@@ -97,9 +96,9 @@ namespace All.Services.jwt
                 ValidateAudience = true,
                 ValidateLifetime = true, // Here we are saying that we don't care about the token's expiration date
                 ValidateIssuerSigningKey = true,
-                //ValidIssuer = _jwtSettings.Issuer,
-                //ValidAudience = _jwtSettings.Audience,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]))
+                ValidIssuer = _jwtSettings.Issuer,
+                ValidAudience = _jwtSettings.Audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey))
             };
 
             var tokenHandler = new JwtSecurityTokenHandler();

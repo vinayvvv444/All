@@ -10,17 +10,23 @@ using All.Data;
 using All.Models.User;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using All.Models.jwt;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Access the Configuration object
 IConfiguration configuration = builder.Configuration;
 
+// Retrieve the JwtSettings from the service provider
+var jwtSettings = configuration.GetSection("JwtSettings").Get<JwtSettings>();
+
 // Add services to the container.
-
 builder.Services.AddControllers();
+builder.Services.Configure<JwtSettings>(configuration.GetSection("JwtSettings"));
 
-var key = Encoding.ASCII.GetBytes(configuration["Jwt:Key"]);
+var key = Encoding.ASCII.GetBytes(jwtSettings.SecretKey);
+
+
 
 // configure db connection
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -45,8 +51,8 @@ builder.Services.AddAuthentication(x =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = configuration["Jwt:Issuer"],
-        ValidAudience = configuration["Jwt:Audience"],
+        ValidIssuer = jwtSettings.Issuer,
+        ValidAudience = jwtSettings.Audience,
         IssuerSigningKey = new SymmetricSecurityKey(key)
     };
 });
